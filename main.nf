@@ -21,9 +21,10 @@ include { MOBSUITE_RECON    } from './modules/mobsuite'
 include { PLASMIDFINDER     } from './modules/plasmidfinder'
 include { check_env         } from './modules/check_env'
 
-
-
-
+// New Modules
+include { PGAP_RUN; PGAP_DOWNLOAD } from './modules/pgap'
+include { CLINKER_VISUALIZE; EXTRACT_INPUTS } from './modules/clinker'
+include { CLINKER_VISUALIZE as CLINKER_VISUALIZE_PLASMIDS } from './modules/clinker'
 
 workflow {
 
@@ -53,10 +54,19 @@ workflow {
     }
 
     // ─────────────────────────────────────────────
+    // 0️⃣  PGAP Data Preparation
+    // ─────────────────────────────────────────────
+    if (params.pgap_data_dir) {
+        pgap_data_ch = Channel.value(file(params.pgap_data_dir))
+    } else {
+        PGAP_DOWNLOAD()
+        pgap_data_ch = PGAP_DOWNLOAD.out.pgap_data_dir
+    }
+
+    // ─────────────────────────────────────────────
     // 1️⃣  Input handling
     // ─────────────────────────────────────────────
     if (params.assemblies) {
-        // Pick up .fasta or .fa files
         channel
             .fromPath("${params.assemblies}/*.{fa,fasta}", checkIfExists: true)
             .ifEmpty { error "No FASTA files found in assemblies directory '${params.assemblies}'." }
@@ -67,57 +77,81 @@ workflow {
             .set { assemblies_ch }
 
     } else {
-        // Pick up .fastq or .fastq.gz files
         channel
             .fromPath("${params.input_dir}/*.{fastq,fastq.gz}", checkIfExists: true)
             .ifEmpty { error "No FASTQ files found in input directory '${params.input_dir}'." }
             .map { file -> 
                 def base = file.baseName
-
-                // Identify Illumina-style paired-end reads to skip
                 def illumina = base ==~ /.*(_1|_2|_R1|_R2)(\.fastq(\.gz)?)?$/
                 if (illumina) {
                     def sample_id = base.replaceFirst(/(\.fastq(\.gz)?)$/, '')
                     println "Ignoring Illumina-style file: ${file} (sample: ${sample_id})"
                     return null
                 }
-
                 def sample_id = base.replaceFirst(/(\.fastq(\.gz)?)$/, '')
                 tuple(sample_id, file)
                 }
             .filter { it != null }
             .set { fastq_files }
 
-    // ─────────────────────────────────────────────
-    // 2️⃣  Run assembly workflow
-    // ─────────────────────────────────────────────
-    PORECHOP(fastq_files)
-    NANOPLOT(PORECHOP.out)
+        // ─────────────────────────────────────────────
+        // 2️⃣  Run assembly workflow
+        // ─────────────────────────────────────────────
+        PORECHOP(fastq_files)
+        NANOPLOT(PORECHOP.out)
 
-    if (params.assembler == 'autocycler') {
-        AUTOCYCLER(PORECHOP.out, params.read_type)
-        assemblies_ch = AUTOCYCLER.out.assembly
-    } else {
-        DRAGONFLYE(PORECHOP.out, params.medaka_model)
-        assemblies_ch = DRAGONFLYE.out
-    }
+        if (params.assembler == 'autocycler') {
+            AUTOCYCLER(PORECHOP.out, params.read_type)
+            assemblies_ch = AUTOCYCLER.out.assembly
+        } else {
+            DRAGONFLYE(PORECHOP.out, params.medaka_model)
+            assemblies_ch = DRAGONFLYE.out
+        }
     }
 
     // ─────────────────────────────────────────────
     // 3️⃣  Common downstream step
     // ─────────────────────────────────────────────
-    assemblies_ch.set { assemblies }    
 
-    //assess assembly using quast
     QUAST(assemblies_ch)
 
-    //run amrfinderplus
+    // ─────────────────────────────────────────────
+    // 4️⃣  Annotation with PGAP
+    // ─────────────────────────────────────────────
+    PGAP_RUN(assemblies_ch, pgap_data_ch)
+
+    // ─────────────────────────────────────────────
+    // 5️⃣  Characterization
+    // ─────────────────────────────────────────────
+
     AMRFINDERPLUS_RUN(assemblies_ch)
-
-    //run mobsuite
     MOBSUITE_RECON(assemblies_ch)
-
-    //run plasmidfinder
     PLASMIDFINDER(assemblies_ch)
+
+    // ─────────────────────────────────────────────
+    // 6️⃣  Visualization with Clinker
+    // ─────────────────────────────────────────────
+
+    pgap_ch = PGAP_RUN.out.gbk
+    amr_ch = AMRFINDERPLUS_RUN.out.report
+    mob_ch = MOBSUITE_RECON.out.contig_report
+
+    extract_input_ch = pgap_ch
+        .join(amr_ch, remainder: false)
+        .join(mob_ch, remainder: false)
+
+    EXTRACT_INPUTS(extract_input_ch)
+
+    // Visualize AMR Flanks (if any)
+    EXTRACT_INPUTS.out.flanks
+        .filter { it[1].size() > 0 }
+        .set { flank_ch }
+    CLINKER_VISUALIZE(flank_ch, 'amr_flank')
+
+    // Visualize Plasmids (if any)
+    EXTRACT_INPUTS.out.plasmids
+        .filter { it[1].size() > 0 }
+        .set { plasmid_ch }
     
+    CLINKER_VISUALIZE_PLASMIDS(plasmid_ch, 'plasmid')
 }
