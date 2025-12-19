@@ -29,22 +29,44 @@ PORT automates the analysis of Nanopore sequencing data for plasmid tracking. It
     *   Replicon Typing (PlasmidFinder).
 5.  **Visualization**: Comparative gene synteny plots (Clinker) for whole plasmids and AMR gene flanking regions.
 
-## Usage
+## Installation
 
-### Prerequisites
-*   [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html) (>=22.10.1)
-*   [Docker](https://docs.docker.com/engine/install/) or Singularity
+### 1. Dependencies
+To run PORT, you need the following dependencies:
+*   [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html) (version 22.10.1 or higher)
+*   Container engine: [Docker](https://docs.docker.com/engine/install/) or [Singularity/Apptainer](https://apptainer.org/docs/user/main/quick_start.html)
 
-### 1. Preparing PGAP Data
-This pipeline uses PGAP for annotation, which requires a reference data library (~30GB).
-You can either provide an existing directory or let the pipeline attempt to download it (requires internet and ~30GB space).
+### 2. Clone the Repository
+Clone the PORT repository to your local machine:
 
 ```bash
-# Recommended: Set up data beforehand
-python3 modules/pgap/pgap.py --update --data /path/to/pgap_data
+git clone https://github.com/immem-hackathon-2025/PORT.git
+cd PORT
 ```
 
-### 2. Running the Pipeline
+### 3. Install Nextflow (if needed)
+If you don't have Nextflow installed:
+
+```bash
+curl -s https://get.nextflow.io | bash
+chmod +x nextflow
+sudo mv nextflow /usr/local/bin
+```
+
+### 4. Setup PGAP Data
+The pipeline uses NCBI PGAP for annotation, which relies on a large reference database (~30GB). It is highly recommended to download this once and reuse it.
+
+```bash
+# Download the PGAP management script
+curl -O -L https://github.com/ncbi/pgap/raw/master/scripts/pgap.py
+
+# Download the data (requires ~30GB space)
+python3 pgap.py --update --data ./pgap_data
+```
+
+## Usage
+
+### 1. Running the Pipeline
 
 #### Standard Run (FASTQ Inputs)
 Run the pipeline on a directory of raw Nanopore FASTQ files.
@@ -53,7 +75,7 @@ Run the pipeline on a directory of raw Nanopore FASTQ files.
 nextflow run main.nf \
     --input_dir ./data/fastq \
     --output_dir ./results \
-    --pgap_data_dir /path/to/pgap_data \
+    --pgap_data_dir ./pgap_data \
     -profile standard
 ```
 
@@ -64,7 +86,7 @@ Skip assembly and start directly with assessment and characterization.
 nextflow run main.nf \
     --assemblies ./data/assemblies \
     --output_dir ./results \
-    --pgap_data_dir /path/to/pgap_data \
+    --pgap_data_dir ./pgap_data \
     -profile standard
 ```
 
@@ -75,7 +97,7 @@ nextflow run main.nf \
 | `--input_dir` | Directory containing input FASTQ files (`.fastq`, `.fastq.gz`) | `null` |
 | `--assemblies` | Directory containing pre-assembled genomes (`.fasta`, `.fa`) | `null` |
 | `--output_dir` | Directory where results will be saved | `./output` |
-| `--pgap_data_dir` | Path to PGAP reference data directory. If not set, pipeline may try to download it. | `null` |
+| `--pgap_data_dir` | Path to PGAP reference data directory. | `null` |
 | `--assembler` | Assembler to use: `autocycler` (hybrid/circular) or `dragonflye` (long-read) | `autocycler` |
 | `--read_type` | Read type for Autocycler (e.g., `ont_r10`, `ont_r9`) | `ont_r10` |
 | `--medaka_model` | Medaka model for Dragonflye polishing | `r1041_e82_400bps_sup` |

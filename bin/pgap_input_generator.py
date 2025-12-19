@@ -10,9 +10,11 @@ def main():
     parser.add_argument("--genus", default="Staphylococcus", help="Genus")
     parser.add_argument("--species", default="aureus", help="Species")
     parser.add_argument("--strain", default="unknown", help="Strain")
+    parser.add_argument("--pgap_data_dir", required=True, help="Path to PGAP data directory")
     args = parser.parse_args()
 
     # Create the data structure
+    # According to PGAP CWL definition, 'supplemental_data' is a Directory object
     data = {
         "fasta": {
             "class": "File",
@@ -21,14 +23,12 @@ def main():
         "submol": {
             "class": "File",
             "location": "submol.yaml"
+        },
+        "supplemental_data": {
+            "class": "Directory",
+            "location": args.pgap_data_dir
         }
     }
-
-    # Write submol.yaml (required by PGAP)
-    # PGAP accepts YAML or JSON. We will use JSON for portability if YAML lib missing.
-    # However, 'submol.yaml' expects yaml extension, but content can be JSON (often compatible)
-    # OR we just write a simple yaml manually since we don't have PyYAML.
-    # Actually, JSON is valid YAML 1.2.
 
     submol_data = {
         "topology": "circular",

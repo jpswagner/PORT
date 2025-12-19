@@ -80,11 +80,8 @@ process PGAP_RUN {
     script:
     """
     # Prepare input.json
-    pgap_input_generator.py --fasta $assembly --output input.json --strain $sample_id
-
-    # Run PGAP via cwltool
-    # We set PGAP_INPUT_DIR environment variable just in case.
-    export PGAP_INPUT_DIR="${pgap_data_dir}"
+    # Pass the pgap_data_dir to the generator so it can be added to the JSON
+    pgap_input_generator.py --fasta $assembly --output input.json --strain $sample_id --pgap_data_dir $pgap_data_dir
 
     # Check if data dir looks valid (simple heuristic)
     if [ ! -d "${pgap_data_dir}/input" ] && [ ! -f "${pgap_data_dir}/uniColl_path" ]; then
