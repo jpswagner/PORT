@@ -11,15 +11,109 @@
 
 # PORT
 
-An uptomated pipeline for plasmid outbreak investigation.
+An automated pipeline for plasmid outbreak investigation.
 
 <p align="center">
 <img src="https://github.com/jqbeh/PORT/blob/main/docs/_figures/port_logo.png?raw=true" alt="alt text" width="500">
 </p>
 
+## Overview
+
+PORT automates the analysis of Nanopore sequencing data for plasmid tracking. It performs:
+1.  **Preprocessing**: Quality control and trimming (Porechop, NanoPlot).
+2.  **Assembly**: Long-read assembly (Dragonflye or Autocycler).
+3.  **Annotation**: Prokaryotic genome annotation (PGAP).
+4.  **Characterization**:
+    *   Antimicrobial Resistance (AMRFinderPlus).
+    *   Plasmid Reconstruction (MOB-suite).
+    *   Replicon Typing (PlasmidFinder).
+5.  **Visualization**: Comparative gene synteny plots (Clinker) for whole plasmids and AMR gene flanking regions.
+
+## Installation
+
+### 1. Dependencies
+To run PORT, you need the following dependencies:
+*   [Nextflow](https://www.nextflow.io/docs/latest/getstarted.html) (version 22.10.1 or higher)
+*   Container engine: [Docker](https://docs.docker.com/engine/install/) or [Singularity/Apptainer](https://apptainer.org/docs/user/main/quick_start.html)
+
+### 2. Clone the Repository
+Clone the PORT repository to your local machine:
+
+```bash
+git clone https://github.com/immem-hackathon-2025/PORT.git
+cd PORT
+```
+
+### 3. Install Nextflow (if needed)
+If you don't have Nextflow installed:
+
+```bash
+curl -s https://get.nextflow.io | bash
+chmod +x nextflow
+sudo mv nextflow /usr/local/bin
+```
+
+### 4. Setup PGAP Data
+The pipeline uses NCBI PGAP for annotation, which relies on a large reference database (~30GB). It is highly recommended to download this once and reuse it.
+
+```bash
+# Download the PGAP management script
+curl -O -L https://github.com/ncbi/pgap/raw/master/scripts/pgap.py
+
+# Download the data (requires ~30GB space)
+python3 pgap.py --update --data ./pgap_data
+```
+
+## Usage
+
+### 1. Running the Pipeline
+
+#### Standard Run (FASTQ Inputs)
+Run the pipeline on a directory of raw Nanopore FASTQ files.
+
+```bash
+nextflow run main.nf \
+    --input_dir ./data/fastq \
+    --output_dir ./results \
+    --pgap_data_dir ./pgap_data \
+    -profile standard
+```
+
+#### Run with Pre-assembled Genomes (FASTA Inputs)
+Skip assembly and start directly with assessment and characterization.
+
+```bash
+nextflow run main.nf \
+    --assemblies ./data/assemblies \
+    --output_dir ./results \
+    --pgap_data_dir ./pgap_data \
+    -profile standard
+```
+
+### Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--input_dir` | Directory containing input FASTQ files (`.fastq`, `.fastq.gz`) | `null` |
+| `--assemblies` | Directory containing pre-assembled genomes (`.fasta`, `.fa`) | `null` |
+| `--output_dir` | Directory where results will be saved | `./output` |
+| `--pgap_data_dir` | Path to PGAP reference data directory. | `null` |
+| `--assembler` | Assembler to use: `autocycler` (hybrid/circular) or `dragonflye` (long-read) | `autocycler` |
+| `--read_type` | Read type for Autocycler (e.g., `ont_r10`, `ont_r9`) | `ont_r10` |
+| `--medaka_model` | Medaka model for Dragonflye polishing | `r1041_e82_400bps_sup` |
+
+## Outputs
+
+Key results can be found in the output directory:
+*   **`assemblies/`**: Final assembled genomes.
+*   **`pgap_annotations/`**: Annotated GenBank (`.gbk`) and GFF files.
+*   **`clinker_visualization/`**: Interactive HTML plots comparing plasmid structures and AMR gene contexts.
+*   **`amrfinder_results/`**, **`mobsuite_results/`**, **`plasmidfinder/`**: Detailed typing reports.
+
 ## Documentation
 
-Documentation for PORT can be found [here](https://jqbeh.github.io/PORT/)
+Full documentation for PORT can be found [here](https://jqbeh.github.io/PORT/)
+
 ## Citation
 
 If you use PORT in your research, please cite this repository.
